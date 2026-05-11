@@ -8,9 +8,20 @@ type CocoSsdModule = typeof import('@tensorflow-models/coco-ssd')
 let mobilenet: Awaited<ReturnType<MobileNetModule['load']>> | null = null
 let cocoSsd: Awaited<ReturnType<CocoSsdModule['load']>> | null = null
 
+async function initTf() {
+  const tf = await import('@tensorflow/tfjs')
+  try {
+    await tf.setBackend('webgl')
+    await tf.ready()
+  } catch {
+    await tf.setBackend('cpu')
+    await tf.ready()
+  }
+}
+
 async function loadMobileNet() {
   if (mobilenet) return mobilenet
-  await import('@tensorflow/tfjs')
+  await initTf()
   const m = await import('@tensorflow-models/mobilenet')
   mobilenet = await m.load({ version: 2, alpha: 1.0 })
   return mobilenet
@@ -18,7 +29,7 @@ async function loadMobileNet() {
 
 async function loadCocoSsd() {
   if (cocoSsd) return cocoSsd
-  await import('@tensorflow/tfjs')
+  await initTf()
   const m = await import('@tensorflow-models/coco-ssd')
   cocoSsd = await m.load()
   return cocoSsd

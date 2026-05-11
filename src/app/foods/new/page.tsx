@@ -105,7 +105,8 @@ export default function NewFoodPage() {
       router.push('/foods')
     } catch (err) {
       console.error(err)
-      toast.error('保存に失敗しました')
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(`保存に失敗しました: ${msg}`)
     } finally {
       setSaving(false)
     }
