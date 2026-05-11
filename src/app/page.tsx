@@ -1,65 +1,106 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+export const dynamic = 'force-dynamic'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Camera } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PFCProgressBar } from '@/components/PFCProgressBar'
+import { MealLogItem } from '@/components/MealLogItem'
+import { supabase } from '@/lib/supabase'
+import { sumPFC } from '@/lib/pfc'
+import { toast } from 'sonner'
+import type { MealLog, UserGoals, PFCTotals } from '@/types'
+
+export default function DashboardPage() {
+  const [logs, setLogs] = useState<MealLog[]>([])
+  const [goals, setGoals] = useState<UserGoals | null>(null)
+  const [totals, setTotals] = useState<PFCTotals>({ protein_g: 0, fat_g: 0, carb_g: 0, calories: 0 })
+  const [loading, setLoading] = useState(true)
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  async function load() {
+    const start = `${todayStr}T00:00:00`
+    const end = `${todayStr}T23:59:59`
+
+    const [{ data: logData }, { data: goalsData }] = await Promise.all([
+      supabase
+        .from('meal_logs')
+        .select('*, food:foods(*)')
+        .gte('logged_at', start)
+        .lte('logged_at', end)
+        .order('logged_at', { ascending: false }),
+      supabase.from('user_goals').select('*').limit(1).maybeSingle(),
+    ])
+
+    const todayLogs = (logData ?? []) as MealLog[]
+    setLogs(todayLogs)
+    setGoals(goalsData)
+    setTotals(sumPFC(todayLogs))
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleDelete = async (id: string) => {
+    await supabase.from('meal_logs').delete().eq('id', id)
+    toast.success('削除しました')
+    load()
+  }
+
+  const today = new Date().toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  })
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="p-4 space-y-4 max-w-lg mx-auto">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground">{today}</p>
+          <h1 className="text-xl font-bold">今日の記録</h1>
+        </div>
+        <Link href="/log">
+          <Button>
+            <Camera className="h-4 w-4 mr-2" />
+            記録する
+          </Button>
+        </Link>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">今日の進捗</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">読み込み中...</p>
+          ) : (
+            <PFCProgressBar totals={totals} goals={goals} />
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-1">
+        <h2 className="text-sm font-semibold">今日の食事</h2>
+        {!loading && logs.length === 0 && (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            まだ記録がありません
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        )}
+        {logs.length > 0 && (
+          <div className="border rounded-lg px-3 bg-card">
+            {logs.map((log) => (
+              <MealLogItem key={log.id} log={log} onDelete={handleDelete} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }
